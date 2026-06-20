@@ -2,7 +2,6 @@ package com.alibaba.cloud.ai.studio.admin.service.client;
 
 import com.alibaba.cloud.ai.observation.model.ObservationMetadataAwareOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.beans.BeanUtils;
 
 import java.util.Map;
 
@@ -15,7 +14,7 @@ public class OpenAiObservationMetadataChatOptions extends OpenAiChatOptions impl
     
     public static OpenAiObservationMetadataChatOptions fromOpenAiOptions(OpenAiChatOptions fromOptions) {
         OpenAiObservationMetadataChatOptions options = new OpenAiObservationMetadataChatOptions();
-        BeanUtils.copyProperties(fromOptions, options);
+        ObservationOptionsCopyUtils.copySafely(fromOptions, options);
         return options;
     }
     
