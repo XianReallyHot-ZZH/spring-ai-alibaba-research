@@ -146,16 +146,35 @@
 
 最终输出一份 docs-research/scripts/install-log.md，记录每个中间件最终用了什么命令装上、过程中遇到什么问题、怎么修的。
 
-## 启停脚本
-基于 上一步 装好的中间件，生成三个脚本到 docs-research/scripts/ 下：
+## 中间件启停脚本
+基于刚才装好的中间件，生成三个脚本到 docs-research/scripts/ 下：
 - deps-start.sh：一键启动所有依赖中间件
 - deps-stop.sh：一键停止所有依赖中间件
 - deps-status.sh：查看每个中间件的运行状态
 
-考虑混合场景：有的用 brew services 管，有的是手动 jar，有的是 systemd。脚本要能处理这几种。
 启动后等服务就绪再返回，不要"启动了但还没 ready"。
 status 脚本要打印每个中间件的运行状态和端口监听情况。
 
+## 应用编译启动
+中间件已经起来了（用 docs-research/scripts/deps-status.sh 确认）。
+现在帮我跑 mvn clean package + 启动应用，前端有的话也启动。
+启动过程同样遵循自主修复原则（连续 3 次同一错误才停下来汇报）。
 
+启动成功后告诉我应用监听的端口、管理界面地址。
+失败和修复的过程记到 docs-research/scripts/startup-log.md。
 
+## 接口冒烟
+读 docs-research/api-list.md，挑 5 个最核心的接口（覆盖登录、Prompt、Dataset、Evaluator、Trace 几大模块），用 curl 跑一遍。
+返回 200 算通过，返回错误的列出来。
+最后输出一份 docs-research/08-smoke-test-result.md。
 
+## 沉淀出设置指引
+基于 docs-research/scripts/install-log.md 和 docs-research/scripts/startup-log.md，整理一份给新人看的 setup-guide.md，
+包含：前置条件、装中间件步骤、启动命令、常见踩坑、验证清单。
+保存到 docs-research/09/setup-guide.md。
+
+## 沉淀出环境启动SKILL
+基于这次环境搭建的全流程，给我生成一个 env-bootstrap 的 SKILL，保存到 .claude/skills/env-bootstrap/SKILL.md。
+触发场景：新接手项目、重置环境、定期验证环境健康。
+步骤：依赖盘点 → 装中间件 → 启停脚本 → 编译启动 → 接口冒烟。
+allowed-tools 限制到 Read, Bash, Write。
