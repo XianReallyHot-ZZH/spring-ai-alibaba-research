@@ -79,3 +79,24 @@ mvn test：**5/5 通过**（0.44–2s）。关键锁定点：**create 后即 RUN
 | 同接口 + 有效 `Authorization: Bearer <token>` | 200（拦截器放行，返回 account_id=10000） | 200 + account_id=10000 | ✅ |
 
 mvn test：**4/4 通过**（21.9s，含上下文启动）。覆盖升级：链路 ①（登录鉴权）由 🔴 没有 → 🟢 **有集成兜底**（登录 + 拦截器放行/拒绝已闭环）。
+
+---
+
+## 批次 4/5/6：模型依赖阻塞（诚实汇报，未实现）
+
+这三批的核心【成功态】都依赖 AI 模型调用，而本环境 `model-config.yml` 为空（无 API Key），无法在无模型下达到成功态——属**缺失前置条件**（非重试可修），按规则停下汇报，不硬凑。
+
+| 批次 | 链路 | 卡点（模型依赖） | 当前无模型下的实际表现 |
+|---|---|---|---|
+| **4** 实验 happy 全流程 | ⑤ | `executeExperiment`→`getPromptResult`→`ChatClient.call()` + `getEvaluatorResult`→evaluator 模型调用 | 异步执行必抛错→`status=FAILED`（到不了 COMPLETED，无 score） |
+| **5** KB 异步索引 | ③ | 切片向量化需 `EmbeddingModel` | 写不进 ES 向量→`document.index_status` 卡住/失败（到不了 completed，retrieve 命中不了） |
+| **6** 对话/工作流执行 | ④ | `ChatController`→graph-core 运行时→模型推理 | 执行即报错/空响应（流式无内容） |
+
+**根因**：`model-config.yml` 空（"以空配置启动"），模型调用 seam（`ChatClient`/`ChatModel`/`EmbeddingModel`）在缺 key/缺模型 bean 时运行期失败。
+
+**解锁选项（择一）**：
+1. **配真实模型 Key**（最快）：把 `model-config-dashscope.yaml` 复制为 `model-config.yml` 并填 DashScope/OpenAI/DeepSeek 的 API Key（+ 保证网络可达）。我即可用 `@SpringBootTest` 跑通 4/5/6 的 happy 集成测试。
+2. **Mock 模型 seam**（不依赖外部）：在测试里用 `@MockBean`/`@TestConfiguration` 提供 `ChatModel`/`EmbeddingModel` 桩（固定返回），并补 dataset_version/items、evaluator_version、prompt_version、knowledge_base+文档等种子数据，再处理实验异步时序。工作量**每批约 1–2 人日**（种子 + 异步 + 断言），需分多次推进。
+3. **暂缓**：4/5/6 留到有模型环境或专门排期再做；当前已有批次 1/2/3 兜住（pipeline 解析、实验状态机、鉴权）三条非模型核心链路。
+
+> 已完成批次（1/2/3）新增测试合计 **10 个方法**（pipeline 1 + 状态机 5 + 鉴权 4），全部通过；`mvn test` 总数 17 → **27**。
