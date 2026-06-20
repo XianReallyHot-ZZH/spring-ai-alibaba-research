@@ -1,0 +1,136 @@
+# Admin 模块 CI —— 构建中间件 + mvn clean test + 测试报告
+# 放在仓库根 .github/workflows/（GitHub Actions 只读根目录的 workflows）
+# 触发：push 到任意分支 + PR；仅当 admin 代码变更时跑
+name: Admin CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'spring-ai-alibaba-admin/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'spring-ai-alibaba-admin/**'
+      - '.github/workflows/test.yml'
+
+# 同一 PR 新 push 时取消旧 run
+concurrency:
+  group: admin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      # admin pom java.version = 17
+      JAVA_VERSION: '17'
+      # 中间件连接（application-local.yml 默认 localhost）
+      SPRING_DATASOURCE_URL: 'jdbc:mysql://127.0.0.1:3306/admin?useUnicode=true&characterEncoding=utf-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC'
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+      SPRING_REDIS_HOST: 127.0.0.1
+      SPRING_REDIS_PORT: 6379
+      SPRING_ELASTICSEARCH_URIS: http://127.0.0.1:9200
+      NACOS_SERVER_ADDR: 127.0.0.1:8848
+      ROCKETMQ_ENDPOINTS: 127.0.0.1:18080
+      MANAGEMENT_OTLP_TRACING_EXPORT_ENDPOINT: http://127.0.0.1:4318/v1/traces
+
+    steps:
+      # ========== 1. Checkout ==========
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ========== 2. JDK + Maven 缓存 ==========
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      # ========== 3. 启动中间件（项目自带 docker-compose）==========
+      - name: Generate .env for docker-compose
+        working-directory: spring-ai-alibaba-admin/docker/middleware
+        run: |
+          cat > .env <<'EOF'
+          UID=1001
+          GID=1001
+          TZ=UTC
+          MIDDLEWARE_HOME=.
+          EOF
+
+      - name: Write CI compose override（mysql 标准镜像 + 跳过 kibana/loongcollector）
+        working-directory: spring-ai-alibaba-admin/docker/middleware
+        run: |
+          cat > ci-override.yml <<'EOF'
+          services:
+            mysql:
+              image: mysql:8.0
+            kibana:
+              profiles: [skip]
+            loongcollector:
+              profiles: [skip]
+          EOF
+
+      - name: Start middleware
+        working-directory: spring-ai-alibaba-admin/docker/middleware
+        run: |
+          docker compose -f docker-compose-prod.yaml -f ci-override.yml up -d \
+            mysql redis elasticsearch elasticsearch-init \
+            nacos rmq_namesrv rmq_broker rmq_proxy init-topic
+
+      - name: Wait for middleware readiness
+        working-directory: spring-ai-alibaba-admin/docker/middleware
+        run: |
+          echo "等待 MySQL..."
+          for i in $(seq 1 30); do
+            docker exec mysql mysqladmin -uadmin -padmin ping 2>/dev/null | grep -qi alive && break
+            sleep 3
+          done
+          docker exec mysql mysqladmin -uadmin -padmin ping
+
+          echo "等待 Elasticsearch..."
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null 2>&1 && break
+            sleep 5
+          done
+          curl -sf http://127.0.0.1:9200/_cluster/health | python3 -c "import sys,json; print('ES:', json.load(sys.stdin)['status'])"
+
+          echo "等待 Nacos..."
+          for i in $(seq 1 40); do
+            docker logs nacos 2>&1 | grep -q "started successfully" && break
+            sleep 5
+          done
+          docker logs nacos 2>&1 | tail -1
+
+          echo "等待 RocketMQ broker..."
+          for i in $(seq 1 40); do
+            docker exec rmq_namesrv sh mqadmin clusterList -n rmq_namesrv:9876 >/dev/null 2>&1 && break
+            sleep 5
+          done
+          echo "✅ 中间件就绪"
+
+      # ========== 4. mvn clean test ==========
+      - name: Maven clean test
+        working-directory: spring-ai-alibaba-admin
+        run: mvn clean test -B -Dspring.profiles.active=local
+
+      # ========== 5. 测试报告 ==========
+      - name: Upload surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: spring-ai-alibaba-admin/**/target/surefire-reports/**
+          if-no-files-found: warn
+
+      - name: Annotate PR with test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results
+          path: spring-ai-alibaba-admin/**/target/surefire-reports/*.xml
+          reporter: java-junit
+          fail-on-error: false
