@@ -171,7 +171,7 @@ status 脚本要打印每个中间件的运行状态和端口监听情况。
 ## 沉淀出设置指引
 基于 docs-research/scripts/install-log.md 和 docs-research/scripts/startup-log.md，整理一份给新人看的 setup-guide.md，
 包含：前置条件、装中间件步骤、启动命令、常见踩坑、验证清单。
-保存到 docs-research/09/setup-guide.md。
+保存到 docs-research/09-setup-guide.md。
 
 ## 沉淀出环境启动SKILL
 基于这次环境搭建的全流程，给我生成一个 env-bootstrap 的 SKILL，保存到 .claude/skills/env-bootstrap/SKILL.md。
