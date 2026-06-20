@@ -100,3 +100,12 @@ mvn test：**4/4 通过**（21.9s，含上下文启动）。覆盖升级：链�
 3. **暂缓**：4/5/6 留到有模型环境或专门排期再做；当前已有批次 1/2/3 兜住（pipeline 解析、实验状态机、鉴权）三条非模型核心链路。
 
 > 已完成批次（1/2/3）新增测试合计 **10 个方法**（pipeline 1 + 状态机 5 + 鉴权 4），全部通过；`mvn test` 总数 17 → **27**。
+
+### 更新（用户配置 DeepSeek key 后复核）
+
+- **Key 安全**：`model-config.yml` 已加入 `.gitignore` 并取消 git 跟踪（commit `46b8f55f0`）；真实 key 仅在 `DEEPSEEK_API_KEY` 环境变量，文件用 `${DEEPSEEK_API_KEY}` 引用——**永不进 git**。
+- **模型可用性已验证**：直连 DeepSeek API 确认 `deepseek-v4-pro` + 该 key 可正常返回 chat completion（LLM 可用）。
+- **阻塞画像精细化**：
+  - **批次 5（KB 索引）——仍阻塞**：DeepSeek 是纯 chat 模型、**无 embedding**；KB 切片向量化需要 embedding 模型（如 DashScope `text-embedding-v3`）。需另配 embedding 供应商 key 才能解锁。
+  - **批次 4（实验）/ 批次 6（chat）——LLM 已解锁，但属重度集成测试**：需构建大量交叉引用种子数据（dataset/version/items + evaluator/version + prompt/version，含 `modelConfig` 格式 + `variableMap`）、处理实验异步执行轮询 / graph 运行时，非快补能稳妥完成；建议作为独立专项逐批推进（每批约 1–2 人日）。
+- **建议**：批次 5 待补 embedding key；批次 4/6 若要继续，优先批次 4（链路价值最高），按专项排期。当前 1/2/3 + 模型已验，已是本会话稳妥可达的覆盖。

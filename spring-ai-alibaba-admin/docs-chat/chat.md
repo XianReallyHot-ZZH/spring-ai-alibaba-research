@@ -75,7 +75,7 @@
 
 
 
-## 总结
+## 第一阶段总结
 
 我刚 clone 了 Spring AI Alibaba Admin。现在帮我完整摸清这个项目，
 产出一整套 AI 协作基础设施。整个过程你自主推进，遇到问题自己修、
@@ -233,8 +233,71 @@ allowed-tools 限制到 Read, Bash, Write。
 对 Characterization Test 类型：先跑一次现有代码记录实际行为，再把行为转成断言。不要凭"应该是什么"写断言，凭"实际是什么"写。
 对集成测试类型：需要真实启动应用 + 数据库。用 SpringBootTest 的方式起完整 context 跑。
 补完跑一遍 mvn test 确保都通过。
-输出用表格总结每个测试覆盖的场景、预期结果、实际跑出来的状态。保存到 docs-research/14-test-plan-result.md。
+输出用表格总结每个测试覆盖的场景、预期结果、实际跑出来的状态。保存到 docs-research/14-supple-test-plan-result.md。
 
-按 docs-research/13-test-plan.md 的第 2 批补测试，
-参考第 1 批已经跑通的测试风格，保持一致。
-其他要求同前。输出补充到 docs-research/14-test-plan-result.md。
+按 docs-research/13-test-plan.md 对剩余批次补测试，
+参考第 1 批已经跑通的测试风格，保持一致。其他要求同前。输出补充到 docs-research/14-supple-test-plan-result.md。
+每完成一个批次，commit 一次，然后再进行下一个批次。
+
+
+# 构建CI流程
+让测试持续跑的标准做法是 CI（Continuous Integration）
+
+## 分析项目当前的 CI 状态
+扫一下项目里有没有现成的 CI 配置（看 .github/workflows/、.gitlab-ci.yml、Jenkinsfile、circle.yml 之类）。
+如果有，告诉我现在跑了什么、什么时候触发、有没有跑测试。
+如果没有，告诉我项目代码托管在哪个平台，建议用哪种 CI。
+输出用表格总结。保存到 docs-research/15-ci-status.md。
+
+## 写完整的 CI workflow
+基于上一步的分析，给我写一份完整的 CI workflow。要求：
+- 触发条件：push 到任何分支 + 提 PR 时
+- 运行环境：用项目对应的 JDK 版本（看 pom.xml 里 java.version）
+- 启动需要的中间件
+- 跑 mvn clean test，失败就 block merge
+- 输出测试报告到 CI artifact 区方便 review
+- 加合理的 cache（Maven 依赖缓存）让跑得快一点
+输出完整的 .github/workflows/test.yml（或对应平台的配置文件），我直接 commit 进仓库就能跑。
+
+
+# 第二阶段总结
+我刚跑完第二部分，docs-research/ 里有架构图、模块图、依赖图、接口清单、数据模型五份资产，根目录有 CLAUDE.md，.claude/skills/ 下有 docs-auto-sync skill。
+现在帮我完整跑通改造前的护栏建立流程，全程自主推进，遇到问题自己修、自己 review、自己决定下一步，不要每一步都问我。
+
+请按以下顺序执行：
+
+第一步：环境搭建
+- 基于 docs/external-deps.svg + application*.yml + pom.xml 生成 docs/env-checklist.md
+- 生成本地安装脚本 scripts/install-deps.sh 并执行（遵循自主修复原则：连续 3 次同错才停）
+- 生成依赖启停脚本 deps-start.sh / deps-stop.sh / deps-status.sh
+- 顺手给一份 docker-compose.dev.yml 备选
+- 跑 mvn package + 启动应用，记录 docs/startup-log.md
+- 用 curl 跑 5 个核心接口冒烟，记录 docs/smoke-test-result.md
+
+第二步：测试摸底
+- 基于已有资产列 8 条核心链路，保存到 docs/critical-paths.md
+- 扫现有测试状态，对照核心链路标覆盖度，保存到 docs/test-status.md
+- 跑一遍 mvn test 看真实结果，追加到 test-status.md
+- 算出测试缺口清单 docs/test-gaps.md，P0 不超过 10 个，P1 不超过 10 个，每项标场景描述和建议类型
+
+第三步：补 P0 测试
+- 拆补测试计划 docs/test-plan.md，每批 1-3 个最好 1 个
+- 按计划一批一批补，每批跑通了才进下一批
+- Characterization Test 必须凭"实际行为"写断言，不凭"应该"
+- 所有 P0 批次跑完确认 mvn test 全绿
+
+第四步：CI 集成
+- 分析项目当前 CI 状态
+- 写一份完整 .github/workflows/test.yml（或对应平台）
+- push 触发一次 CI 跑通
+
+自主原则：
+- 每一步跑完自己 review 输出质量，不合格自己重跑
+- 遇到失败自己 debug 自己修（除非连续 3 次同一错误）
+- 测试别贪多，每批严格 1-3 个最好 1 个
+- 测试断言凭实际不凭应该
+- 所有步骤跑完后，生成一份 summary.md，列出每个产出文件、每份资产的主要内容概括、你认为还需要人工确认的地方（特别是补的测试是否都凭"实际行为"写的）
+
+不要打断来问我。有判断不清的地方先做一个合理选择，在 summary里标记。跑完再汇报。
+
+
