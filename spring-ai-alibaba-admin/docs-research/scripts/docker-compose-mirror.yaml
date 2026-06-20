@@ -1,0 +1,29 @@
+# Local-env override for docker-compose-prod.yaml (China network + Windows host):
+#   1) docker.io images → docker.m.daocloud.io mirror (docker.io throttled here;
+#      docker.elastic.co and Aliyun registries stay as-is, they're reachable).
+#   2) mysql host port 3306 → 3307: host 3306 is held by a native mysqld service.
+#      `!override` REPLACES the ports list (compose otherwise appends).
+#   3) mysql / rmq `user` → root ("0:0"): the base compose's user:"${UID}:${GID}" (1000:1000)
+#      breaks rocketmq scripts (Permission denied) on Windows bind mounts.
+services:
+  mysql:
+    # 端口回到项目默认 3306（原生 mysqld 停掉后）；保留 root user 规避 Windows bind-mount 权限
+    user: "0:0"
+  nacos:
+    image: docker.m.daocloud.io/nacos/nacos-server:latest
+  redis:
+    image: docker.m.daocloud.io/library/redis:7.2.5
+  rmq_namesrv:
+    image: docker.m.daocloud.io/apache/rocketmq:5.3.2
+    user: "0:0"
+  rmq_broker:
+    image: docker.m.daocloud.io/apache/rocketmq:5.3.2
+    user: "0:0"
+  rmq_proxy:
+    image: docker.m.daocloud.io/apache/rocketmq:5.3.2
+    user: "0:0"
+  init-topic:
+    image: docker.m.daocloud.io/apache/rocketmq:5.3.2
+    user: "0:0"
+  elasticsearch-init:
+    image: docker.m.daocloud.io/curlimages/curl:latest
