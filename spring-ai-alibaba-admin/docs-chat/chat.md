@@ -118,7 +118,7 @@
 
 
 
-# 项目启动运行
+# 项目启动运行与环境准备
 
 ## 依赖盘点
 综合看 docs-research/02-external-deps.md、application*.yml、pom.xml、README，给我列一份这个项目运行需要的完整外部依赖清单。
@@ -181,7 +181,8 @@ allowed-tools 限制到 Read, Bash, Write。
 
 
 
-# 构建测试护栏
+# 理清现有测试
+摸核心链路 → 摸现有测试 → 跑一遍看实际状态 → 算出缺口清单
 
 ## 摸清核心链路
 基于 docs-research/04-api-list.md、docs-research/05-data-model.md、CLAUDE.md，给我列出
@@ -208,3 +209,32 @@ allowed-tools 限制到 Read, Bash, Write。
 - 不要试图修复失败的测试，只汇报状态
 最后给一个"测试健康度"的判断：绿（90% 通过）/ 黄（60-90%）/红（< 60%）。输出用表格总结。追加到 docs-research/11-test-status.md 的"实际运行结果"小节。
 
+## 测试缺口清单
+对照 docs-research/10-critical-paths.md（应该测什么）和 docs-research/11-test-status.md（现在测了什么），算出测试缺口。
+严格遵守以下原则：
+- 总数不超过 20 项，宁少勿多
+- 只列在核心链路上的缺口，不在主链路上的不要列
+- 每项标 P0（改造前必须有）/ P1（有了更好）
+- 不要追求覆盖率指标，追求"关键路径有兜底"
+- 每项写：场景描述、为什么必须、建议测试类型（集成 / 单元 / Characterization Test）
+输出用表格总结。保存到 docs-research/12-test-gaps.md。
+
+
+# 构建测试护栏
+
+## 补测试计划
+基于 docs-research/12-test-gaps.md，把 P0 缺口拆成多批，每批 1-3 个（最好 1 个），给我一份补测试计划。
+每批写：批次号、测试类型（CharacterizationTest / 集成测试 / 单元测试）、覆盖的核心链路、预期工作量。
+按"改造路径上的 Characterization > 核心链路集成 > 复杂逻辑单元"的顺序排批次。简单 CRUD 不进计划。
+输出用表格总结。保存到 docs-research/13-test-plan.md。
+
+## 一批一批补测试
+按 docs-research/13-test-plan.md 的第 1 批，给项目补出对应的测试。
+对 Characterization Test 类型：先跑一次现有代码记录实际行为，再把行为转成断言。不要凭"应该是什么"写断言，凭"实际是什么"写。
+对集成测试类型：需要真实启动应用 + 数据库。用 SpringBootTest 的方式起完整 context 跑。
+补完跑一遍 mvn test 确保都通过。
+输出用表格总结每个测试覆盖的场景、预期结果、实际跑出来的状态。保存到 docs-research/14-test-plan-result.md。
+
+按 docs-research/13-test-plan.md 的第 2 批补测试，
+参考第 1 批已经跑通的测试风格，保持一致。
+其他要求同前。输出补充到 docs-research/14-test-plan-result.md。
