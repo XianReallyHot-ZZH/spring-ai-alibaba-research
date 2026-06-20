@@ -61,3 +61,21 @@
 
 mvn test：**5/5 通过**（0.44–2s）。关键锁定点：**create 后即 RUNNING（非 DRAFT）**、stop 对终态是 no-op、delete 对 RUNNING 有守卫——这些是改造状态机时易改坏的语义。
 > 未覆盖：RUNNING→COMPLETED/FAILED（经异步模型调用 `executeExperiment`→`ChatClient.call`），属批次 4，需模型（见下"阻塞"）。
+
+---
+
+## 批次 3：鉴权集成（#1+#2）— 已完成
+
+新增测试：`spring-ai-alibaba-admin-server-start/src/test/java/.../builder/AuthIntegrationTest.java`
+- 类型：**集成测试**（`@SpringBootTest` + `@AutoConfigureMockMvc` + `@ActiveProfiles("local")`，起完整应用上下文，连真实 MySQL/Redis/Nacos；MockMvc 走含拦截器的 Spring MVC 层，打种子账号 saa）。
+- 被测：`AuthController.login` + `TokenAuthInterceptor`（核心链路 ①）。
+- 上下文启动 19.3s；4 个用例全过。
+
+| 场景 | 预期（实测） | 实际跑出 | 状态 |
+|---|---|---|:--:|
+| 正确登录 saa/123456 | 200 + `data.access_token` 非空 | 200 + token | ✅ |
+| 错误密码 | 401（BizException→全局处理） | 401 | ✅ |
+| 受保护 `/console/v1/accounts/10000` 无 token | 401（拦截器拒） | 401 | ✅ |
+| 同接口 + 有效 `Authorization: Bearer <token>` | 200（拦截器放行，返回 account_id=10000） | 200 + account_id=10000 | ✅ |
+
+mvn test：**4/4 通过**（21.9s，含上下文启动）。覆盖升级：链路 ①（登录鉴权）由 🔴 没有 → 🟢 **有集成兜底**（登录 + 拦截器放行/拒绝已闭环）。
