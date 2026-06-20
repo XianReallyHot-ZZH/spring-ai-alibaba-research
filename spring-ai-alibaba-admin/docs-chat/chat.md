@@ -118,7 +118,7 @@
 
 
 
-# 项目运行护栏
+# 项目启动运行
 
 ## 依赖盘点
 综合看 docs-research/02-external-deps.md、application*.yml、pom.xml、README，给我列一份这个项目运行需要的完整外部依赖清单。
@@ -174,7 +174,37 @@ status 脚本要打印每个中间件的运行状态和端口监听情况。
 保存到 docs-research/09-setup-guide.md。
 
 ## 沉淀出环境启动SKILL
-基于这次环境搭建的全流程，给我生成一个 env-bootstrap 的 SKILL，保存到 .claude/skills/env-bootstrap/SKILL.md。
+基于这次环境搭建的全流程，给我生成一个通用的 env-bootstrap 的 SKILL，保存到 .claude/skills/env-bootstrap/SKILL.md。
 触发场景：新接手项目、重置环境、定期验证环境健康。
 步骤：依赖盘点 → 装中间件 → 启停脚本 → 编译启动 → 接口冒烟。
 allowed-tools 限制到 Read, Bash, Write。
+
+
+
+# 构建测试护栏
+
+## 摸清核心链路
+基于 docs-research/04-api-list.md、docs-research/05-data-model.md、CLAUDE.md，给我列出
+这个项目最值得测的核心链路。要求：
+- 总数不超过 8 条，宁少勿多
+- 必须是"改造时容易出问题"的链路，不是所有链路
+- 每条写：链路名、起点（哪个接口）、关键节点（哪些 service / DB 操作）、终点（什么状态算成功）
+输出用表格总结。保存到 docs-research/10-critical-paths.md。
+
+## 现有测试梳理
+扫一下项目里所有的测试目录（src/test、tests/、e2e/ 等），统计现有测试情况。要求：
+- 单元测试 / 集成测试 / E2E 各多少个文件
+- 哪些 Controller 有对应的测试，哪些没有
+- 哪些核心 Service 有测试，哪些没有
+- 不要给覆盖率百分比，那是 JaCoCo 干的事
+- 不要列出每个测试方法，只关注"哪些核心链路被覆盖"
+对照 docs-research/10-critical-paths.md，标出每条核心链路当前的测试覆盖情况（有 / 部分 / 没有）。输出用表格总结。保存到 docs-research/11-test-status.md。
+
+## 实际测试
+跑一遍 mvn test（或项目的标准测试命令），统计真实结果：
+- 通过 / 失败 / 跳过 各多少
+- 失败的分类：代码 bug / 测试本身坏了 / 环境问题
+- 跑总耗时多少
+- 不要试图修复失败的测试，只汇报状态
+最后给一个"测试健康度"的判断：绿（90% 通过）/ 黄（60-90%）/红（< 60%）。输出用表格总结。追加到 docs-research/11-test-status.md 的"实际运行结果"小节。
+
