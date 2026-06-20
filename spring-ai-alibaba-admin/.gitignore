@@ -63,3 +63,7 @@ docker/middleware/rocketmq/*
 /spring-ai-alibaba-studio/spring-ai-alibaba-studio-server/docker/middleware/kibana/*
 !/spring-ai-alibaba-studio/spring-ai-alibaba-studio-server/docker/middleware/kibana/data/
 !/spring-ai-alibaba-studio/spring-ai-alibaba-studio-server/docker/middleware/kibana/data/.gitkeep
+
+# 本地模型配置（可能含 API Key）——绝不提交
+spring-ai-alibaba-admin-server-start/model-config.yml
+spring-ai-alibaba-admin-server-start/model-config.yaml
