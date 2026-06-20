@@ -1,8 +1,8 @@
 # PR（中文版）：fix(admin): harden legacy Playground/Evaluator frontend against crashes
 
-> 提交目标：alibaba/spring-ai-alibaba。直接开 PR（四处修复都显而易见、无设计争议，其中两处直接复用代码库里已有的 `safeJSONParse`）。
+> 提交目标：alibaba/spring-ai-alibaba。直接开 PR（五处修复都显而易见、无设计争议，其中两处直接复用代码库里已有的 `safeJSONParse`）。
 > 英文版见同目录 [18-pr-legacy-frontend-hardening.md](./18-pr-legacy-frontend-hardening.md)。
-> 四个独立的 legacy 前端崩溃 bug，都阻断相关功能、都由 #3867 引入。
+> 五个独立的 legacy 前端崩溃 bug，都阻断相关功能、都由 #3867 引入。
 > 改动 4 个文件，均在 `frontend/.../legacy/`。
 
 ---
@@ -19,12 +19,13 @@ fix(admin): harden legacy Playground/Evaluator frontend against crashes
 
 ### Describe what this PR does / why we need it
 
-legacy 的 Playground 与 Evaluator 页面有四个独立的崩溃 bug（均由 #3867 引入），每个都让相关功能不可用：
+legacy 的 Playground 与 Evaluator 页面有五个独立的崩溃 bug（均由 #3867 引入），每个都让相关功能不可用：
 
 1. **Playground——发送即崩**：点 **Send** 抛 `ReferenceError: currentPrompt is not defined`。
 2. **Playground——首轮渲染错位**：首轮把用户自己的消息文本渲染进助手气泡（React key 冲突），第二轮起正常。
 3. **Evaluator——列表崩**：任一评估器的 `modelConfig` 未设/非法时，列表抛 `SyntaxError: "undefined" is not valid JSON`。
 4. **Evaluator——模板详情崩**：模板 modelConfig 展示在遇到非法 JSON 时崩（只靠 `modelConfig &&`，挡不住字符串 `"undefined"`）。
+5. **Evaluator——详情页「调试」白屏**：从评估器详情页点「调试」跳到 `/evaluation-debug`，但**该路由未注册**（只注册了 `/admin/evaluation/debug`）→ 无匹配 → 内容区空白 = 白屏。
 
 ### Does this pull request fix one issue?
 
@@ -90,17 +91,31 @@ NONE
 +                          {JSON.stringify(safeJSONParse(selectedTemplateDetail.modelConfig, () => ({})), null, 2)}
 ```
 
+**Bug 5——「调试」跳到不存在的路由**（`pages/evaluation/evaluator/evaluator-detail/index.tsx`）：详情页跳的是 `/evaluation-debug`，但只注册了 `/admin/evaluation/debug`（`.umirc.ts`：`'/admin/evaluation/debug' -> evaluator-debug`）。改用列表页同款 `getLegacyPath('/evaluation/debug')` 跳到已注册路由，并同步 `prePathname` 的来回识别：
+
+```diff
+// evaluator-detail/index.tsx
++import { getLegacyPath } from '../../../../utils/path';
+ ...
+-        const isFromEvaluationDebug = stateFromDebug?.prePathname === '/evaluation-debug';
++        const isFromEvaluationDebug = stateFromDebug?.prePathname === getLegacyPath('/evaluation/debug');
+ ...
+-    navigate('/evaluation-debug', { state: debugConfig });
++    navigate(getLegacyPath('/evaluation/debug'), { state: debugConfig });
+```
+
 ### Describe how to verify it
 
 1. 启动 admin 后端与前端（`npm run dev`）。
 2. **Playground**：配置 prompt → Send → 不抛 ReferenceError；首轮助手气泡只显示模型回复、不混入用户问题。
-3. **Evaluator**：即便有评估器没配 modelConfig 也能打开列表 → 不抛 SyntaxError；打开模板详情 → 不崩。
+3. **Evaluator 列表**：即便有评估器没配 modelConfig 也能打开列表 → 不抛 SyntaxError。
+4. **Evaluator 详情**：打开评估器、配好模型、点**调试** → 调试页正常渲染（不白屏）；打开模板详情 → 不崩。
 
 ### Special notes for reviews
 
-- 改动 4 个文件，均在 `frontend/packages/main/src/legacy/`。无新增依赖——Bug 3/4 直接复用已有的 `safeJSONParse` 工具 / 兄弟位置的保护写法。
-- 四处均可在 current `main` 复现；由 #3867（Ken Liu，2025-12-22）引入。
-- 这是一组源自 #3867 的 bug 的一部分（后端还有：outputSchema 的 `BeanUtils` 拷贝、RAG 的 `topK` NPE）。建议对 #3867 新增的 RAG + Playground + 评估链路做一次回归。
+- 改动 4 个文件，均在 `frontend/packages/main/src/legacy/`。无新增依赖——Bug 3/4 复用已有的 `safeJSONParse`；Bug 5 复用已有的 `getLegacyPath`。
+- 五处均可在 current `main` 复现；由 #3867（Ken Liu，2025-12-22）引入。
+- 这是一组源自 #3867 的 bug 的一部分（目前共发现 7 个：本文 5 个前端 + 后端 outputSchema、RAG topK，另案跟踪）。建议对 #3867 新增的 RAG + Playground + 评估链路做一次回归。
 
 ---
 
@@ -108,8 +123,8 @@ NONE
 
 1. Fork `alibaba/spring-ai-alibaba`（若还没有 upstream fork）。
 2. 从干净 upstream main 拉分支：`git switch -c fix/legacy-frontend-hardening upstream/main`。
-3. 应用本改动（你本地工作区已是该状态——4 个文件四处修复）。
-4. **本地先确认**：Playground 发送不崩且首轮渲染正常、Evaluator 列表/详情不崩（已确认 ✓）。
+3. 应用本改动（你本地工作区已是该状态——4 个文件五处修复）。
+4. **本地先确认**：Playground 发送不崩且首轮渲染正常、Evaluator 列表/详情/调试均不崩（已确认 ✓）。
 5. `git push -u origin fix/legacy-frontend-hardening` → GitHub 开 PR，base = `alibaba/spring-ai-alibaba:main`。
 6. 标题/正文用上面这份；首次 PR 按 CLA bot 引导签个人 CLA。
 

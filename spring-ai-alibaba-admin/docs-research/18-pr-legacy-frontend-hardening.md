@@ -1,7 +1,7 @@
 # PR：fix(admin): harden legacy Playground/Evaluator frontend against crashes
 
-> 提交目标：alibaba/spring-ai-alibaba。直接开 PR（四处修复都显而易见、无设计争议，其中两处直接复用代码库里已有的 `safeJSONParse`）。
-> 四个独立的 legacy 前端崩溃 bug，都阻断相关功能、都由 #3867 引入。
+> 提交目标：alibaba/spring-ai-alibaba。直接开 PR（五处修复都显而易见、无设计争议，其中两处直接复用代码库里已有的 `safeJSONParse`）。
+> 五个独立的 legacy 前端崩溃 bug，都阻断相关功能、都由 #3867 引入。
 > 改动 4 个文件，均在 `frontend/.../legacy/`。
 
 ---
@@ -18,12 +18,13 @@ fix(admin): harden legacy Playground/Evaluator frontend against crashes
 
 ### Describe what this PR does / why we need it
 
-Four independent crash bugs in the legacy Playground and Evaluator pages (all introduced in #3867), each breaking a core build/eval flow:
+Five independent crash bugs in the legacy Playground and Evaluator pages (all introduced in #3867), each breaking a core build/eval flow:
 
 1. **Playground — Send crash:** clicking **Send** throws `ReferenceError: currentPrompt is not defined`.
 2. **Playground — first-turn mis-render:** the user's own message text is rendered inside the assistant bubble on the first turn (React key collision); later turns are fine.
 3. **Evaluator — list crash:** the Evaluator list throws `SyntaxError: "undefined" is not valid JSON` whenever any evaluator's `modelConfig` is unset/invalid.
 4. **Evaluator — template-detail crash:** the template `modelConfig` display crashes on invalid JSON (guarded only by `modelConfig &&`, which doesn't stop the literal string `"undefined"`).
+5. **Evaluator — detail "调试" white screen:** clicking 调试 from the evaluator detail page navigates to `/evaluation-debug`, which is **not a registered route** (only `/admin/evaluation/debug` is registered) → blank/white screen.
 
 ### Does this pull request fix one issue?
 
@@ -89,17 +90,31 @@ NONE
 +                          {JSON.stringify(safeJSONParse(selectedTemplateDetail.modelConfig, () => ({})), null, 2)}
 ```
 
+**Bug 5 — 调试 navigates to a non-existent route** (`pages/evaluation/evaluator/evaluator-detail/index.tsx`): the detail page navigated to `/evaluation-debug`, but only `/admin/evaluation/debug` is registered (`.umirc.ts`: `'/admin/evaluation/debug' -> evaluator-debug`). Navigate to the registered route via the same `getLegacyPath('/evaluation/debug')` helper the list already uses, and sync the `prePathname` round-trip check:
+
+```diff
+// evaluator-detail/index.tsx
++import { getLegacyPath } from '../../../../utils/path';
+ ...
+-        const isFromEvaluationDebug = stateFromDebug?.prePathname === '/evaluation-debug';
++        const isFromEvaluationDebug = stateFromDebug?.prePathname === getLegacyPath('/evaluation/debug');
+ ...
+-    navigate('/evaluation-debug', { state: debugConfig });
++    navigate(getLegacyPath('/evaluation/debug'), { state: debugConfig });
+```
+
 ### Describe how to verify it
 
 1. Start admin backend + frontend (`npm run dev`).
 2. **Playground:** configure a prompt → Send → no `ReferenceError`; the first turn's assistant bubble shows only the model reply (not the user's question).
-3. **Evaluator:** open the list even when an evaluator has no `modelConfig` → no `SyntaxError`; open a template detail → no crash.
+3. **Evaluator list:** open the list even when an evaluator has no `modelConfig` → no `SyntaxError`.
+4. **Evaluator detail:** open an evaluator, configure a model, click **调试** → the debug page renders (no white screen); open a template detail → no crash.
 
 ### Special notes for reviews
 
-- Four files changed, all under `frontend/packages/main/src/legacy/`. No new dependencies — Bugs 3 & 4 reuse the existing `safeJSONParse` helper / guard pattern already used in sibling code.
-- All four reproduce on current `main`; introduced in #3867 (Ken Liu, 2025-12-22).
-- These are part of a cluster of bugs tracing to #3867 (also: backend `outputSchema` `BeanUtils` copy, and RAG `topK` NPE). A regression pass over the RAG + Playground + Evaluator paths that PR added is worthwhile.
+- Four files changed, all under `frontend/packages/main/src/legacy/`. No new dependencies — Bugs 3/4 reuse the existing `safeJSONParse` helper; Bug 5 reuses the existing `getLegacyPath` helper.
+- All five reproduce on current `main`; introduced in #3867 (Ken Liu, 2025-12-22).
+- Part of a larger cluster of bugs tracing to #3867 (7 found so far: these 5 frontend ones + backend `outputSchema` `BeanUtils` copy + RAG `topK` NPE, tracked separately). A regression pass over the RAG + Playground + Evaluator paths that PR added is worthwhile.
 
 ---
 
@@ -107,8 +122,8 @@ NONE
 
 1. Fork `alibaba/spring-ai-alibaba`（若还没有 upstream fork）。
 2. 从干净 upstream main 拉分支：`git switch -c fix/legacy-frontend-hardening upstream/main`。
-3. 应用本改动（你本地工作区已是该状态——4 个文件四处修复）。
-4. **本地先确认**：Playground 发送不崩且首轮渲染正常、Evaluator 列表/详情不崩（已确认 ✓）。
+3. 应用本改动（你本地工作区已是该状态——4 个文件五处修复）。
+4. **本地先确认**：Playground 发送不崩且首轮渲染正常、Evaluator 列表/详情/调试均不崩（已确认 ✓）。
 5. `git push -u origin fix/legacy-frontend-hardening` → GitHub 开 PR，base = `alibaba/spring-ai-alibaba:main`。
 6. 标题/正文用上面这份；首次 PR 按 CLA bot 引导签个人 CLA。
 
