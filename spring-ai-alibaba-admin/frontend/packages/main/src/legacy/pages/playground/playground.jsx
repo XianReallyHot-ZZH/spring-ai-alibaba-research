@@ -570,6 +570,10 @@ const PlaygroundPage = () => {
       enableFn
     } = promptInstance;
 
+    // Resolve the selected prompt definition (carries promptKey + currentVersion.version).
+    // Fixes "currentPrompt is not defined" ReferenceError when sending a playground message.
+    const currentPrompt = prompts.find(p => p.promptKey === promptInstance.selectedPromptId);
+
     const config = {
       promptId,
       content,
@@ -578,7 +582,7 @@ const PlaygroundPage = () => {
       modelParams,
       sessionId,
       promptKey: currentPrompt?.promptKey || 'playground',
-      version: currentPrompt?.latestVersion || '1.0',
+      version: currentPrompt?.currentVersion?.version || '1.0',
       mockTools: enableFn === false ? [] : mockTools,
     };
 
@@ -615,7 +619,7 @@ const PlaygroundPage = () => {
     setPromptInstances(prev => prev.map(prompt => {
       if (prompt.id === promptId) {
         const userMessage = {
-          id: Date.now() + prompt.id,
+          id: `user-${Date.now()}-${prompt.id}`,
           type: 'user',
           content: inputText,
           timestamp: formatTime(Date.now())
